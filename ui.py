@@ -11,6 +11,39 @@ import threading
 import time
 from pathlib import Path
 
+# ============================================================================
+# UNICODE OUTPUT FIX — Windows console (cp1252) no puede codificar emojis.
+# ============================================================================
+def _configure_unicode_output() -> None:
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            continue
+        try:
+            current_enc = stream.encoding
+        except Exception:
+            current_enc = None
+        can_utf8 = False
+        if current_enc and current_enc.lower() in ("utf-8", "utf8", "utf_8"):
+            can_utf8 = True
+        elif current_enc is None:
+            can_utf8 = True
+        elif hasattr(stream, "buffer") and hasattr(stream.buffer, "raw"):
+            try:
+                raw_name = type(stream.buffer.raw).__name__
+                if "Console" not in raw_name:
+                    can_utf8 = True
+            except Exception:
+                pass
+        if can_utf8:
+            try:
+                stream.reconfigure(encoding="utf-8")
+            except (ValueError, TypeError, OSError):
+                pass
+
+
+_configure_unicode_output()
+
 import psutil
 
 from PyQt6.QtCore import (
@@ -1425,7 +1458,6 @@ class MainWindow(QMainWindow):
                 }}
                 QPushButton:hover {{ background: #001f10; }}
             """)
-
     def _send(self):
         txt = self._input.text().strip()
         if not txt: return
@@ -1439,14 +1471,11 @@ class MainWindow(QMainWindow):
         self.hud.speaking = (state == "SPEAKING")
 
     def _check_config(self) -> bool:
-        if not API_FILE.exists(): return False
-        try:
-            d = json.loads(API_FILE.read_text(encoding="utf-8"))
-            return (bool(d.get("gemini_api_key")) and
-                    bool(d.get("openrouter_api_key")) and
-                    bool(d.get("os_system")))
-        except Exception:
-            return False
+        # Check if keys are configured (either in .env or legacy config)
+        from core.config_loader import get_gemini_api_key, get_openrouter_api_key
+        gemini_key = get_gemini_api_key()
+        openrouter_key = get_openrouter_api_key()
+        return bool(gemini_key and openrouter_key)
 
     def _show_setup(self):
         ov = SetupOverlay(self.centralWidget())

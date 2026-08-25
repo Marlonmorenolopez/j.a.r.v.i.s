@@ -5,43 +5,6 @@ from threading import Lock
 from pathlib import Path
 import sys
 
-# ============================================================================
-# UNICODE OUTPUT FIX — Windows console (cp1252) no puede codificar emojis.
-# Reconfigura stdout/stderr a UTF-8 cuando el stream lo permite.
-# ============================================================================
-def _configure_unicode_output() -> None:
-    """Reconfigure stdout/stderr para UTF-8 cuando sea seguro."""
-    for stream_name in ("stdout", "stderr"):
-        stream = getattr(sys, stream_name, None)
-        if stream is None:
-            continue
-        try:
-            current_enc = stream.encoding
-        except Exception:
-            current_enc = None
-
-        can_utf8 = False
-        if current_enc and current_enc.lower() in ("utf-8", "utf8", "utf_8"):
-            can_utf8 = True
-        elif current_enc is None:
-            can_utf8 = True
-        elif hasattr(stream, "buffer") and hasattr(stream.buffer, "raw"):
-            try:
-                raw_name = type(stream.buffer.raw).__name__
-                if "Console" not in raw_name:
-                    can_utf8 = True
-            except Exception:
-                pass
-
-        if can_utf8:
-            try:
-                stream.reconfigure(encoding="utf-8")
-            except (ValueError, TypeError, OSError):
-                pass
-
-
-_configure_unicode_output()
-
 
 def get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -174,28 +137,7 @@ def update_memory(memory_update: dict) -> dict:
     return memory
 
 
-_PERSISTENT_FACT_PATTERN = re.compile(
-    r"\b(?:me llamo|mi nombre|soy |tengo \d+|tengo un|tengo una|vivo|nac[ií]|"
-    r"trabajo|estudio|mi (?:favorito|favorita|preferencia|familia|madre|padre|"
-    r"hermano|hermana|pareja|amigo|amiga)|me gusta|no me gusta|prefiero|"
-    r"quiero (?:comprar|viajar|aprender)|planeo|mi proyecto|estoy creando)\b",
-    re.IGNORECASE,
-)
-
-
-def _may_contain_persistent_information(user_text: str) -> bool:
-    """Avoid a remote memory check when the input cannot add long-term context."""
-    text = (user_text or "").strip()
-    if not text:
-        return False
-    return bool(_PERSISTENT_FACT_PATTERN.search(text))
-
-
 def should_extract_memory(user_text: str, jarvis_text: str, api_key: str = "") -> bool:
-    if not _may_contain_persistent_information(user_text):
-        print("[Memory] ⏭️ Local filter: no persistent information detected.")
-        return False
-
     try:
         from or_client import client
 

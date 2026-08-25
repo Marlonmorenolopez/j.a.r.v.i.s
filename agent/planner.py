@@ -3,16 +3,9 @@ import re
 import sys
 from pathlib import Path
 
+from core.config_loader import get_gemini_api_key, get_base_dir
 
-def get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
-
-
-BASE_DIR        = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
-
+BASE_DIR = get_base_dir()
 
 PLANNER_PROMPT = """You are the planning module of MARK XXV, a personal AI assistant.
 Your job: break any user goal into a sequence of steps using ONLY the tools listed below.
@@ -31,7 +24,7 @@ open_app
   app_name: string (required)
 
 web_search
-  query: string (required) — write a clear, focused search query
+  query: string (required) - write a clear, focused search query
   mode: "search" or "compare" (optional, default: search)
   items: list of strings (optional, for compare mode)
   aspect: string (optional, for compare mode)
@@ -52,17 +45,17 @@ browser_control
 
 file_controller
   action: "write" | "create_file" | "read" | "list" | "delete" | "move" | "copy" | "find" | "disk_usage" (required)
-  path: string — use "desktop" for Desktop folder
-  name: string — filename
-  content: string — file content (for write/create_file)
+  path: string - use "desktop" for Desktop folder
+  name: string - filename
+  content: string - file content (for write/create_file)
 
 cmd_control
-  task: string (required) — natural language description of what to do
+  task: string (required) - natural language description of what to do
   visible: boolean (optional)
 
 computer_settings
   action: string (required)
-  description: string — natural language description
+  description: string - natural language description
   value: string (optional)
 
 computer_control
@@ -75,7 +68,7 @@ computer_control
   description: string (for screen_find/screen_click)
 
 screen_process
-  text: string (required) — what to analyze or ask about the screen
+  text: string (required) - what to analyze or ask about the screen
   angle: "screen" | "camera" (optional)
 
 send_message
@@ -156,7 +149,7 @@ Steps:
 
 reminder | date: [today], time: [now+30min], message: "Reminder"
 
-OUTPUT — return ONLY valid JSON, no markdown, no explanation, no code blocks:
+OUTPUT - return ONLY valid JSON, no markdown, no explanation, no code blocks:
 {
   "goal": "...",
   "steps": [
@@ -172,15 +165,10 @@ OUTPUT — return ONLY valid JSON, no markdown, no explanation, no code blocks:
 """
 
 
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
-
-
 def create_plan(goal: str, context: str = "") -> dict:
     import google.generativeai as genai
 
-    genai.configure(api_key=_get_api_key())
+    genai.configure(api_key=get_gemini_api_key())
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash-lite",
         system_instruction=PLANNER_PROMPT
@@ -240,7 +228,7 @@ def _fallback_plan(goal: str) -> dict:
 def replan(goal: str, completed_steps: list, failed_step: dict, error: str) -> dict:
     import google.generativeai as genai
 
-    genai.configure(api_key=_get_api_key())
+    genai.configure(api_key=get_gemini_api_key())
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash",
         system_instruction=PLANNER_PROMPT

@@ -1,15 +1,6 @@
-import json
-import sys
-from pathlib import Path
+from core.config_loader import get_gemini_api_key, get_openrouter_api_key, get_base_dir
 
-
-def get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
-
-
-BASE_DIR    = get_base_dir()
+BASE_DIR = get_base_dir()
 CONFIG_DIR  = BASE_DIR / "config"
 CONFIG_FILE = CONFIG_DIR / "api_keys.json"
 
@@ -51,9 +42,23 @@ def load_api_keys() -> dict:
 
 
 def get_gemini_key() -> str | None:
+    # Priority: .env > legacy config
+    key = get_gemini_api_key()
+    if key:
+        return key
     return load_api_keys().get("gemini_api_key")
 
 
+def get_openrouter_key() -> str | None:
+    # Priority: .env > legacy config
+    key = get_openrouter_api_key()
+    if key:
+        return key
+    return load_api_keys().get("openrouter_api_key")
+
+
 def is_configured() -> bool:
-    key = get_gemini_key()
-    return bool(key and len(key) > 15)
+    # Check both keys are configured
+    gemini_key = get_gemini_key()
+    openrouter_key = get_openrouter_key()
+    return bool(gemini_key and len(gemini_key) > 15 and openrouter_key)

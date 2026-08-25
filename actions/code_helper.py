@@ -18,27 +18,18 @@ import re
 import time
 from pathlib import Path
 
+from core.config_loader import get_gemini_api_key, get_base_dir
 
-def get_base_dir():
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
 
 BASE_DIR           = get_base_dir()
-API_CONFIG_PATH    = BASE_DIR / "config" / "api_keys.json"
 DESKTOP            = Path.home() / "Desktop"
 MAX_BUILD_ATTEMPTS = 3
 GEMINI_MODEL       = "gemini-2.5-flash"
 
 
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
-
-
 def _get_gemini(model: str = GEMINI_MODEL):
     import google.generativeai as genai
-    genai.configure(api_key=_get_api_key())
+    genai.configure(api_key=get_gemini_api_key())
     return genai.GenerativeModel(model)
 
 
@@ -157,6 +148,7 @@ def _detect_intent(description: str, file_path: str, code: str) -> str:
         return "build"
 
     return "write"
+
 
 def _write(description: str, language: str, output_path: str, player=None) -> tuple[str, Path]:
     lang  = language or "python"
@@ -290,6 +282,7 @@ def _build(description, language, output_path, args, timeout, speak=None, player
     )
     if speak: speak(msg)
     return f"{msg}\n\nLast code saved to: {path}"
+
 
 def _write_action(description, language, output_path, player) -> str:
     if not description:
@@ -458,7 +451,7 @@ def _screen_debug_action(description, file_path, player, speak=None) -> str:
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=_get_api_key())
+        client = genai.Client(api_key=get_gemini_api_key())
 
         image_bytes  = screenshot_path.read_bytes()
         image_base64 = _image_to_base64(screenshot_path)
@@ -512,72 +505,46 @@ Be specific and actionable. If you see an error message, quote it exactly."""
         return analysis
 
     except Exception as e:
-
-        try:
-            screenshot_path.unlink()
-        except Exception:
-            pass
-        return f"Screen analysis failed: {e}"
+        print(f"[Code] ❌ Screen debug failed: {e}")
+        return f"Screen debug failed: {e}"
 
 
-def code_helper(
-    parameters: dict,
-    response=None,
-    player=None,
-    session_memory=None,
-    speak=None
-) -> str:
+def code_helper(parameters: dict, player=None, speak=None) -> str:
     """
-    Called from main.py.
-
-    parameters:
-        action      : write | edit | explain | run | build | screen_debug | optimize | auto
-        description : What the code should do / what change to make / what problem to analyze
-        language    : Programming language (default: python)
-        output_path : Where to save — user specifies full path or filename
-        file_path   : Path to existing file (edit / explain / run / build / optimize)
-        code        : Raw code string (explain/optimize without a file)
-        args        : CLI argument list for run/build
-        timeout     : Execution timeout in seconds (default: 30)
+    Main entry point for code_helper tool.
+    Dispatches to appropriate action based on intent detection.
     """
-    p           = parameters or {}
-    action      = p.get("action", "auto").lower().strip()
-    description = p.get("description", "").strip()
-    language    = p.get("language", "python").strip()
-    output_path = p.get("output_path", "").strip()
-    file_path   = p.get("file_path", "").strip()
-    code        = p.get("code", "").strip()
-    args        = p.get("args", [])
-    timeout     = int(p.get("timeout", 30))
+    description = parameters.get("description", "").strip()
+    file_path = parameters.get("file_path", "").strip()
+    code = parameters.get("code", "").strip()
+    language = parameters.get("language", "").strip()
+    output_path = parameters.get("output_path", "").strip()
+    args = parameters.get("args", [])
+    timeout = parameters.get("timeout", 30)
 
-    if action == "auto":
-        action = _detect_intent(description, file_path, code)
-        print(f"[Code] 🤖 Auto-detected: {action}")
+    if not description and not file_path and not code:
+        return "Please provide a description, file path, or code to work with, sir."
 
-    if action == "write":
-        return _write_action(description, language, output_path, player)
+    if player:
+        player.write_log(f"[Code] code_helper: {description[:60]}...")
 
-    elif action == "edit":
-        return _edit_action(
-            file_path,
-            description or p.get("instruction", ""),
-            player
-        )
+    intent = _detect_intent(description, file_path, code)
 
-    elif action == "explain":
-        return _explain_action(file_path, code, player)
+    dispatch = {
+        "write":      lambda: _write_action(description, language, output_path, player),
+        "edit":       lambda: _edit_action(file_path, description, player),
+        "explain":    lambda: _explain_action(file_path, code, player),
+        "run":        lambda: _run_action(file_path, args, timeout, player),
+        "build":      lambda: _build(description, language, output_path, args, timeout, speak, player),
+        "optimize":   lambda: _optimize_action(file_path, code, language, output_path, player),
+        "screen_debug": lambda: _screen_debug_action(description, file_path, player, speak),
+    }
 
-    elif action == "run":
-        return _run_action(file_path, args, timeout, player)
+    handler = dispatch.get(intent)
+    if not handler:
+        return f"Unknown intent: {intent}"
 
-    elif action == "build":
-        return _build(description, language, output_path, args, timeout, speak, player)
-
-    elif action == "optimize":
-        return _optimize_action(file_path, code, language, output_path, player)
-
-    elif action == "screen_debug":
-        return _screen_debug_action(description, file_path, player, speak)
-
-    else:
-        return f"Unknown action: '{action}'. Use write, edit, explain, run, build, optimize, or screen_debug."
+    try:
+        return handler()
+    except Exception as e:
+        return f"Code helper error: {e}"

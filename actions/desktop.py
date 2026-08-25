@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import platform
+import ast
 from pathlib import Path
 from datetime import datetime
 
@@ -30,7 +31,60 @@ def _get_desktop() -> Path:
             return Path(xdg)
     return Path.home() / "Desktop"
 
+def _desktop_extract_imports(source: str) -> list[str]:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports.append(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imports.append(node.module.split(".")[0])
+    return imports
+
+
+_DESKTOP_ALLOWED_MODULES = frozenset({
+    "math", "random", "time", "datetime",
+    "re", "string", "collections", "itertools",
+    "functools", "pathlib", "typing", "json",
+    "pyautogui",
+    "PIL", "Pillow",
+})
+
+_DESKTOP_PROHIBITED_MODULES = frozenset({
+    "subprocess", "os", "os.system", "os.spawn", "os.popen",
+    "ctypes", "winreg", "win32api", "win32con",
+    "socket", "http", "urllib", "smtplib", "ftplib",
+    "webbrowser", "platform", "shutil",
+    "distutils", "setuptools", "pip",
+})
+
+
+def _desktop_validate_imports(source: str) -> tuple[bool, str]:
+    imports = _desktop_extract_imports(source)
+    for mod in imports:
+        if mod in _DESKTOP_PROHIBITED_MODULES:
+            return False, f"Importación prohibida: {mod}"
+        if mod not in _DESKTOP_ALLOWED_MODULES:
+            return False, f"Módulo no autorizado: {mod}"
+    return True, ""
+
+
 def _build_sandbox() -> dict:
+    """
+    Sandbox para exec() de código de desktop.
+
+    Restricciones:
+        - NO ctypes
+        - NO winreg
+        - shutil completo NO → solo funciones específicas permitidas
+        - os_path (os.path) restringido a lectura no destructiva
+        - NO os, NO subprocess
+    """
     import time
 
     safe_builtins = {
@@ -48,77 +102,118 @@ def _build_sandbox() -> dict:
         "Path": Path,
         "time": time,
         "shutil": type("shutil", (), {
-            "copy2":      shutil.copy2,
-            "copytree":   shutil.copytree,
-            "disk_usage": shutil.disk_usage,
+            "copy2": shutil.copy2 if "shutil" in globals() and hasattr(shutil, "copy2") else None,
+            "copytree": None,
+            "disk_usage": shutil.disk_usage if "shutil" in globals() and hasattr(shutil, "disk_usage") else None,
         })(),
-        "os_path": os.path,  
+        "os_path": type("os_path_restricted", (), {
+            "join": os.path.join,
+            "exists": os.path.exists,
+            "isdir": os.path.isdir,
+            "isfile": os.path.isfile,
+            "basename": os.path.basename,
+            "dirname": os.path.dirname,
+            "splitext": os.path.splitext,
+            "getsize": os.path.getsize,
+        })(),
     }
 
     if _PYAUTOGUI:
         sandbox["pyautogui"] = pyautogui
 
-    if _OS == "Windows":
-        try:
-            import ctypes
-            import winreg
-            sandbox["ctypes"] = ctypes
-            sandbox["winreg"] = type("winreg", (), {
-                # Sadece okuma
-                "OpenKey":      winreg.OpenKey,
-                "QueryValueEx": winreg.QueryValueEx,
-                "HKEY_CURRENT_USER": winreg.HKEY_CURRENT_USER,
-            })()
-        except ImportError:
-            pass
-
     return sandbox
 
 
 def _execute_generated_code(code: str, player=None) -> str:
+    """
+    Ejecuta código generado en un subprocess aislado, no en exec().
+    """
     if not code or code.strip() == "UNSAFE":
         return "This action cannot be performed safely."
 
-    # Kod temizleme
     if code.startswith("```"):
         lines = code.split("\n")
-        code  = "\n".join(lines[1:-1]).strip()
+        code = "\n".join(lines[1:-1]).strip()
 
-    sandbox      = _build_sandbox()
-    output_lines = []
-    sandbox["__builtins__"]["print"] = lambda *a: output_lines.append(" ".join(str(x) for x in a))
+    ok, err_msg = _desktop_validate_imports(code)
+    if not ok:
+        print(f"[Desktop] 🚫 Bloqueado: {err_msg}")
+        return f"Execution rejected: {err_msg}"
 
-    try:
-        exec(compile(code, "<jarvis_desktop>", "exec"), sandbox)
-        return "\n".join(output_lines) if output_lines else "Done."
-    except Exception as e:
-        print(f"[Desktop] Exec error: {e}\nCode:\n{code[:300]}")
-        return f"Execution error: {e}"
+    with tempfile.TemporaryDirectory(prefix="jarvis_desktop_") as tmp_dir:
+        allowed = Path(tmp_dir).resolve()
+        script_path = allowed / "desktop_task.py"
+
+        code_restricted = (
+            "\n"
+            "# Sandbox path guard\n"
+            "import os as _os\n"
+            f"_ALLOWED_DIR = Path({repr(str(allowed))}).resolve()\n"
+            "\n"
+            "def _validate_path(p):\n"
+            "    try:\n"
+            "        r = Path(p).expanduser().resolve()\n"
+            "    except (TypeError, ValueError, OSError):\n"
+            '        raise PermissionError("Out-of-sandbox path rejected.")\n'
+            "    if not str(r).startswith(str(_ALLOWED_DIR)):\n"
+            '        raise PermissionError("Path outside sandbox.")\n'
+            "    return r\n"
+        )
+        script_path.write_text(code_restricted + "\n" + code, encoding="utf-8")
+
+        try:
+            result = subprocess.run(
+                [sys.executable, str(script_path)],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                cwd=str(allowed),
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Desktop code timed out after 15 seconds.")
+        finally:
+            try:
+                script_path.unlink()
+            except Exception:
+                pass
+
+        output = result.stdout.strip()
+        error  = result.stderr.strip()
+
+        if result.returncode == 0 and output:
+            return output
+        elif result.returncode == 0:
+            return "Done."
+        elif error:
+            return f"Execution error: {error[:300]}"
+        return "Done."
 
 def _ask_gemini_for_desktop_action(task: str) -> str:
     from or_client import client
 
     desktop = str(_get_desktop())
     os_specific = {
-        "Windows": "- ctypes (Windows API calls, read-only)\n- winreg (registry READ only)",
+        "Windows": "- NOTE: ctypes and winreg are NOT available. Use pyautogui or Path only.",
         "Darwin":  "- subprocess is NOT available; use pyautogui or Path only",
         "Linux":   "- subprocess is NOT available; use pyautogui or Path only",
     }.get(_OS, "")
 
     prompt = f"""You are a desktop automation assistant.
 Current OS: {_OS}
-Desktop path: {desktop}
 Generate safe Python code to accomplish the task below.
 Allowed modules ONLY:
 - pyautogui (mouse, keyboard — if needed)
 - pathlib.Path (file/folder inspection only, no deletion)
-- shutil.copy2, shutil.copytree, shutil.disk_usage (NO move, NO rmtree)
-- os_path (os.path equivalent, read-only)
+- shutil.copy2, shutil.disk_usage (NO move, NO copytree, NO rmtree)
+- os_path (os.path equivalent, read-only, NO delete/remove)
 - time.sleep
 {os_specific}
 Hard rules:
 - NO file deletion, NO subprocess, NO exec/eval inside the code
-- NO import statements, NO file write except explicitly requested
+- NO ctypes, NO winreg, NO os, NO import statements
+- NO file write except explicitly requested
+- All file operations must be relative to the current directory
 - If task cannot be done safely with these tools, output exactly: UNSAFE
 Output ONLY the Python code. No explanation, no markdown, no backticks.
 Task: {task}"""

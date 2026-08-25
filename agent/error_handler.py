@@ -4,22 +4,16 @@ import sys
 from pathlib import Path
 from enum import Enum
 
+from core.config_loader import get_gemini_api_key, get_base_dir
 
-def get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
-
-
-BASE_DIR        = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+BASE_DIR = get_base_dir()
 
 
 class ErrorDecision(Enum):
-    RETRY       = "retry"      
-    SKIP        = "skip"       
-    REPLAN      = "replan"     
-    ABORT       = "abort"    
+    RETRY       = "retry"
+    SKIP        = "skip"
+    REPLAN      = "replan"
+    ABORT       = "abort"
 
 
 ERROR_ANALYST_PROMPT = """You are the error recovery module of MARK XXV AI assistant.
@@ -47,11 +41,6 @@ Return ONLY valid JSON:
   "user_message": "Short message to tell the user (max 15 words)"
 }
 """
-
-
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
 
 
 def analyze_error(
@@ -90,7 +79,7 @@ def analyze_error(
             "user_message":  "Trying a different approach, sir."
         }
 
-    genai.configure(api_key=_get_api_key())
+    genai.configure(api_key=get_gemini_api_key())
     model = genai.GenerativeModel(
         model_name="gemini-2.5-flash-lite",
         system_instruction=ERROR_ANALYST_PROMPT
@@ -150,7 +139,7 @@ def generate_fix(step: dict, error: str, fix_suggestion: str) -> dict:
     """
     import google.generativeai as genai
 
-    genai.configure(api_key=_get_api_key())
+    genai.configure(api_key=get_gemini_api_key())
     model = genai.GenerativeModel(model_name="gemini-2.0-flash")
 
     prompt = f"""A task step failed. Generate a replacement step.

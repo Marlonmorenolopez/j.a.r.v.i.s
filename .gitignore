@@ -1,0 +1,19 @@
+# API Keys y secretos (CRÍTICO)
+.env
+config/api_keys.json
+
+# Memoria y base de datos
+memory/long_term.json
+
+# Logs de ejecución
+*.log
+
+# Archivos temporales y backups de fases
+.phase*-backup/
+.*backup/
+
+# Archivos generados por Python
+pycache/
+*.pyc
+.venv/
+venv/

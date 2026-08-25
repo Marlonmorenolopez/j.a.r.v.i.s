@@ -8,57 +8,30 @@ from typing import Optional
 
 import requests
 
-from core.config_loader import get_env, get_openrouter_api_key, get_base_dir
-
-# ============================================================================
-# UNICODE OUTPUT FIX — Windows console (cp1252) no puede codificar emojis.
-# Reconfigura stdout/stderr a UTF-8 cuando el stream lo permite.
-# ============================================================================
-def _configure_unicode_output() -> None:
-    """Reconfigure stdout/stderr para UTF-8 cuando sea seguro."""
-    for stream_name in ("stdout", "stderr"):
-        stream = getattr(sys, stream_name, None)
-        if stream is None:
-            continue
-        try:
-            current_enc = stream.encoding
-        except Exception:
-            current_enc = None
-
-        can_utf8 = False
-        if current_enc and current_enc.lower() in ("utf-8", "utf8", "utf_8"):
-            can_utf8 = True
-        elif current_enc is None:
-            can_utf8 = True
-        elif hasattr(stream, "buffer") and hasattr(stream.buffer, "raw"):
-            try:
-                raw_name = type(stream.buffer.raw).__name__
-                if "Console" not in raw_name:
-                    can_utf8 = True
-            except Exception:
-                pass
-
-        if can_utf8:
-            try:
-                stream.reconfigure(encoding="utf-8")
-            except (ValueError, TypeError, OSError):
-                pass
-
-
-_configure_unicode_output()
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("openrouter_client")
 
+def _get_base_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parent
 
-BASE_DIR = get_base_dir()
 
-# Get API key from .env or legacy config
+BASE_DIR     = _get_base_dir()
+API_KEY_PATH = BASE_DIR / "config" / "api_keys.json"
+
 def _load_api_key() -> str:
-    key = get_openrouter_api_key()
-    if not key:
-        raise ValueError("OPENROUTER_API_KEY not set in .env or legacy config")
-    return key
+    try:
+        with open(API_KEY_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        key = data.get("openrouter_api_key", "").strip()
+        if not key:
+            raise ValueError("openrouter_api_key is empty in api_keys.json")
+        return key
+    except FileNotFoundError:
+        raise RuntimeError(f"api_keys.json not found at: {API_KEY_PATH}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to load OpenRouter API key: {e}")
 
 TEXT_MODELS: list[str] = [
     "nvidia/nemotron-3-super-120b-a12b:free",
@@ -99,10 +72,9 @@ VISION_MODELS: list[str] = [
 API_URL               = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MAX_TOKENS    = 4096
 DEFAULT_TEMPERATURE   = 0.7
-REQUEST_TIMEOUT       = 20   # seconds per request
-MAX_RETRIES_PER_MODEL = 1    # a failed free endpoint should fall back promptly
-MAX_FALLBACK_MODELS   = 3    # bound worst-case latency while retaining redundancy
-RETRY_DELAY           = 0.5  # retained for any future retry configuration
+REQUEST_TIMEOUT       = 60   # seconds per request
+MAX_RETRIES_PER_MODEL = 2    # attempts before moving to next model
+RETRY_DELAY           = 2    # seconds between retries
 RATE_LIMIT_COOLDOWN   = 60   # seconds before retrying a rate-limited model
 
 _rate_limited: dict[str, float] = {}
@@ -209,21 +181,17 @@ class OpenRouterClient:
                 f"falling back to pool: {model}"
             )
 
-        candidates = [m for m in pool if m != model][:MAX_FALLBACK_MODELS]
-        for index, m in enumerate(candidates, start=1):
+        for m in pool:
             if self._is_rate_limited(m):
                 continue
-            logger.info(
-                f"[OpenRouter] Trying fallback {index}/{len(candidates)}: {m}"
-            )
+            logger.info(f"[OpenRouter] Trying: {m}")
             result = self._call(m, messages, max_tokens, temperature, response_format)
             if result:
                 logger.info(f"[OpenRouter] ✓ Success: {m}")
                 return result
-            logger.warning(f"[OpenRouter] Fallback failed: {m}")
 
         raise RuntimeError(
-            f"[OpenRouter] {len(candidates)} fallback models failed or are rate-limited. "
+            "[OpenRouter] All models failed or are rate-limited. "
             "Check your API key and network connection."
         )
 

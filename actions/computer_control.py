@@ -23,6 +23,12 @@ try:
 except ImportError:
     _PYPERCLIP = False
 
+try:
+    import psutil
+    _PSUTIL = True
+except ImportError:
+    _PSUTIL = False
+
 def _base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
@@ -289,8 +295,80 @@ def _focus_window(title: str) -> str:
             return "focus_window (Linux) requires wmctrl or xdotool"
         except Exception as e:
             return f"focus_window (Linux) failed: {e}"
-
     return f"focus_window: unknown OS '{os_name}'"
+
+
+def _close_app_by_name(app_name: str) -> str:
+    """Close application by process name (e.g., 'notepad', 'chrome', 'firefox')."""
+    if not _PSUTIL:
+        return "psutil not installed. Run: pip install psutil"
+
+    app_name = app_name.lower().strip()
+    if not app_name:
+        return "No application name provided."
+
+    # Common name mappings
+    name_map = {
+        "bloc de notas": "notepad.exe",
+        "notepad": "notepad.exe",
+        "calculadora": "calc.exe",
+        "calculator": "calc.exe",
+        "paint": "mspaint.exe",
+        "explorador de archivos": "explorer.exe",
+        "file explorer": "explorer.exe",
+        "cmd": "cmd.exe",
+        "command prompt": "cmd.exe",
+        "powershell": "powershell.exe",
+        "terminal": "wt.exe",
+        "chrome": "chrome.exe",
+        "firefox": "firefox.exe",
+        "edge": "msedge.exe",
+        "brave": "brave.exe",
+        "opera": "opera.exe",
+        "vscode": "code.exe",
+        "visual studio code": "code.exe",
+        "word": "winword.exe",
+        "excel": "excel.exe",
+        "powerpoint": "powerpnt.exe",
+        "outlook": "outlook.exe",
+        "teams": "teams.exe",
+        "discord": "discord.exe",
+        "spotify": "spotify.exe",
+        "steam": "steam.exe",
+        "epicgameslauncher": "epicgameslauncher.exe",
+        "vlc": "vlc.exe",
+        "vlc media player": "vlc.exe",
+    }
+
+    target_exe = name_map.get(app_name, app_name)
+    if not target_exe.endswith(".exe"):
+        target_exe = target_exe + ".exe"
+
+    killed = []
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            if proc.info['name'] and proc.info['name'].lower() == target_exe.lower():
+                proc.terminate()
+                killed.append(f"{proc.info['name']} (PID {proc.info['pid']})")
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+    if killed:
+        return f"Closed: {', '.join(killed)}"
+
+    # Try partial match
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            if proc.info['name'] and target_exe.replace('.exe', '').lower() in proc.info['name'].lower():
+                proc.terminate()
+                killed.append(f"{proc.info['name']} (PID {proc.info['pid']})")
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+    if killed:
+        return f"Closed (partial match): {', '.join(killed)}"
+
+    return f"No running process found for '{app_name}' (tried '{target_exe}')."
 def _screen_find(description: str) -> tuple[int, int] | None:
     try:
         import base64
@@ -455,6 +533,9 @@ def computer_control(
 
         if action == "focus_window":
             return _focus_window(params.get("title", ""))
+
+        if action == "close_app":
+            return _close_app_by_name(params.get("app_name", ""))
 
         if action == "random_data":
             dt     = params.get("type", "name")
