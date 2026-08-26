@@ -114,10 +114,10 @@ def test_classify_clarify():
     router = get_intent_router()
 
     # Test SYSTEM_SHUTDOWN (always clarify)
-    intent = router.classify("apaga jarvis", autonomy_level=3)
+    intent = router.classify("apaga pipe", autonomy_level=3)
     assert intent.name == "SYSTEM_SHUTDOWN"
     assert intent.path == RoutingPath.CLARIFY
-    print(f"PASS: 'apaga jarvis' → {intent.name}, path={intent.path.value}")
+    print(f"PASS: 'apaga pipe' → {intent.name}, path={intent.path.value}")
 
     # Test HELP
     intent = router.classify("ayuda", autonomy_level=3)
@@ -147,10 +147,10 @@ def test_autonomy_gating():
     assert intent.requires_confirmation is False
     print(f"PASS: 'envía un mensaje' nivel 4 → requires_confirmation={intent.requires_confirmation}")
 
-    # CRITICAL always requires confirmation
-    intent = router.classify("apaga jarvis", autonomy_level=5)
+    # SYSTEM_SHUTDOWN always requires confirmation (high risk)
+    intent = router.classify("apaga pipe", autonomy_level=5)
     assert intent.requires_confirmation is True
-    print(f"PASS: 'apaga jarvis' nivel 5 → requires_confirmation={intent.requires_confirmation} (CRITICAL rule)")
+    print(f"PASS: 'apaga pipe' nivel 5 → requires_confirmation={intent.requires_confirmation} (HIGH risk rule)")
 
     return True
 

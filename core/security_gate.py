@@ -1,4 +1,4 @@
-"""Security Gate — Safety validation and policy enforcement for JARVIS.
+"""Security Gate — Safety validation and policy enforcement for P.I.P.E.
 
 This module provides:
 - Pre-execution safety checks for capabilities

@@ -188,7 +188,7 @@ if __name__ == "__main__":
         tts = VoiceTTS(TTSConfig(voice="es-ES-AlvaroNeural"))
         
         print("[VoiceTTS] Testing synthesis...")
-        audio = await tts.synthesize("Hola, soy JARVIS. ¿En qué puedo ayudarte?")
+        audio = await tts.synthesize("Hola, soy P.I.P.E. ¿En qué puedo ayudarte?")
         print(f"Generated {len(audio)} bytes of audio")
         
         # Save test file

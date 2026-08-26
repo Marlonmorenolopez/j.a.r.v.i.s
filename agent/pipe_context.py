@@ -1,4 +1,4 @@
-"""Context Engine — Conversation context management for JARVIS.
+"""Context Engine — Conversation context management for P.I.P.E.
 
 This module provides the context layer for the Agent Path:
 - Session management (history, state, preferences)
@@ -7,7 +7,7 @@ This module provides the context layer for the Agent Path:
 - Context window management
 
 Distinct from context_compressor.py (token compression) and context_engine.py (abstract base).
-This is the operational context engine for JARVIS runtime.
+This is the operational context engine for P.I.P.E runtime.
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ class ContextEntry:
 
 
 class ContextEngine:
-    """Operational context engine for JARVIS.
+    """Operational context engine for P.I.P.E.
 
     Manages:
     - Conversation history (messages)

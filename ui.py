@@ -5,11 +5,29 @@ import math
 import os
 import platform
 import random
-import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
+
+# ============================================================================
+# CRITICAL: Patch subprocess BEFORE importing subprocess
+# This fixes UnicodeDecodeError on Windows with Spanish locale (cp1252)
+# BUT we must be careful not to break asyncio's internal use of Popen
+# ============================================================================
+import subprocess
+import locale
+
+# Only patch subprocess.run (which is commonly called with text=True)
+# Patching Popen breaks asyncio on Windows
+_orig_run = subprocess.run
+def _patched_run(*args, **kwargs):
+    if "encoding" not in kwargs and kwargs.get("text", False):
+        kwargs["encoding"] = locale.getpreferredencoding(False)
+    if "errors" not in kwargs and kwargs.get("text", False):
+        kwargs["errors"] = "replace"
+    return _orig_run(*args, **kwargs)
+subprocess.run = _patched_run
 
 # ============================================================================
 # UNICODE OUTPUT FIX — Windows console (cp1252) no puede codificar emojis.
@@ -486,7 +504,7 @@ class HudCanvas(QWidget):
             p.setPen(QPen(qcol(C.PRI, min(255, int(self._halo * 2))), 1))
             p.setFont(QFont("Courier New", 13, QFont.Weight.Bold))
             p.drawText(QRectF(cx - 80, cy - 14, 160, 28),
-                       Qt.AlignmentFlag.AlignCenter, "J.A.R.V.I.S")
+                       Qt.AlignmentFlag.AlignCenter, "P.I.P.E")
 
         # particles
         for pt in self._particles:
@@ -766,7 +784,7 @@ class FileDropZone(QWidget):
 
     def _browse(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select a file for JARVIS", str(Path.home()),
+            self, "Select a file for P.I.P.E", str(Path.home()),
             "All Files (*.*);;"
             "Images (*.jpg *.jpeg *.png *.gif *.webp *.bmp *.svg);;"
             "Documents (*.pdf *.docx *.txt *.md *.pptx);;"
@@ -921,7 +939,7 @@ class SetupOverlay(QWidget):
             return w
 
         layout.addWidget(_lbl("◈  INITIALISATION REQUIRED", 13, True))
-        layout.addWidget(_lbl("Configure J.A.R.V.I.S. before first boot.", 9, color=C.PRI_DIM))
+        layout.addWidget(_lbl("Configure P.I.P.E. before first boot.", 9, color=C.PRI_DIM))
         layout.addSpacing(6)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
@@ -1042,13 +1060,13 @@ class SetupOverlay(QWidget):
         self.done.emit(key, or_key, self._sel_os)
 
 
-class MainWindow(QMainWindow):
+class PipeUI(QMainWindow):
     _log_sig   = pyqtSignal(str)
     _state_sig = pyqtSignal(str)
 
     def __init__(self, face_path: str):
         super().__init__()
-        self.setWindowTitle("J.A.R.V.I.S — MARK XXXIX")
+        self.setWindowTitle("P.I.P.E — Personal Intelligent Processing Entity")
         self.setMinimumSize(_MIN_W, _MIN_H)
         self.resize(_DEFAULT_W, _DEFAULT_H)
 
@@ -1193,16 +1211,16 @@ class MainWindow(QMainWindow):
             l.setStyleSheet(f"color: {color}; background: transparent;")
             return l
 
-        lay.addWidget(_badge("MARK XXXIX", C.PRI_DIM))
+        lay.addWidget(_badge("P.I.P.E", C.PRI_DIM))
         lay.addStretch()
 
         mid = QVBoxLayout(); mid.setSpacing(1)
-        title = QLabel("J.A.R.V.I.S")
+        title = QLabel("P.I.P.E")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setFont(QFont("Courier New", 17, QFont.Weight.Bold))
         title.setStyleSheet(f"color: {C.PRI}; background: transparent;")
         mid.addWidget(title)
-        sub = QLabel("Just A Rather Very Intelligent System")
+        sub = QLabel("Personal Intelligent Processing Entity")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub.setFont(QFont("Courier New", 7))
         sub.setStyleSheet(f"color: {C.PRI_DIM}; background: transparent;")
@@ -1297,6 +1315,7 @@ class MainWindow(QMainWindow):
             lay.addWidget(lbl)
 
         return w
+
     def _build_right_panel(self) -> QWidget:
         w = QWidget()
         w.setFixedWidth(_RIGHT_W)
@@ -1407,7 +1426,7 @@ class MainWindow(QMainWindow):
 
         lay.addWidget(_fl("[F4] Mute  ·  [F11] Fullscreen"))
         lay.addStretch()
-        lay.addWidget(_fl("FatihMakes Industries  ·  MARK XXXIX  ·  CLASSIFIED"))
+        lay.addWidget(_fl("FatihMakes Industries  ·  P.I.P.E  ·  CLASSIFIED"))
         lay.addStretch()
         lay.addWidget(_fl("© STARK INDUSTRIES", C.PRI_DIM))
         return w
@@ -1418,7 +1437,7 @@ class MainWindow(QMainWindow):
         cat  = _file_category(p)
         icon, _ = _FILE_ICONS.get(cat, _FILE_ICONS["unknown"])
         size = _fmt_size(p.stat().st_size)
-        self._file_hint.setText(f"{icon}  {p.name}  ·  {size}  ·  Tell JARVIS what to do with it")
+        self._file_hint.setText(f"{icon}  {p.name}  ·  {size}  ·  Tell P.I.P.E what to do with it")
         self._log.append_log(f"FILE: {p.name} ({size}) loaded")
         if self.on_text_command:
             msg = (
@@ -1458,6 +1477,7 @@ class MainWindow(QMainWindow):
                 }}
                 QPushButton:hover {{ background: #001f10; }}
             """)
+
     def _send(self):
         txt = self._input.text().strip()
         if not txt: return
@@ -1506,7 +1526,8 @@ class MainWindow(QMainWindow):
             self._overlay.hide()
             self._overlay = None
         self._apply_state("LISTENING")
-        self._log.append_log(f"SYS: Initialised. OS={os_name.upper()}. JARVIS online.")
+        self._log.append_log(f"SYS: Initialised. OS={os_name.upper()}. P.I.P.E online.")
+
 
 class _RootShim:
     def __init__(self, app: QApplication):
@@ -1517,11 +1538,11 @@ class _RootShim:
         pass
 
 
-class JarvisUI:
+class PipeUIWrapper:
     def __init__(self, face_path: str, size=None):
         self._app = QApplication.instance() or QApplication(sys.argv)
         self._app.setStyle("Fusion")
-        self._win = MainWindow(face_path)
+        self._win = PipeUI(face_path)
         self._win.show()
         self.root = _RootShim(self._app)
 

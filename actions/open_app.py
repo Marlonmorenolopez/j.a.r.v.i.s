@@ -1,5 +1,5 @@
 # actions/open_app.py
-# MARK XXXIX-OR — Native Windows App Launcher
+# P.I.P.E — Native Windows App Launcher
 # Elimina completamente pyautogui. Usa os.startfile, subprocess, webbrowser.
 
 import os

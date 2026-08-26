@@ -1,5 +1,5 @@
 """
-file_processor.py — JARVIS Universal File Processor (Migrado a google.genai SDK)
+file_processor.py — P.I.P.E Universal File Processor (Migrado a google.genai SDK)
 """
 
 import os

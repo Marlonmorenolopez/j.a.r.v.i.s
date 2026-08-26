@@ -1,5 +1,5 @@
 """
-Voice-UI Integration — Connects VoicePipeline to JARVIS UI and Agent system.
+Voice-UI Integration — Connects VoicePipeline to P.I.P.E UI and Agent system.
 """
 
 import threading
@@ -14,7 +14,7 @@ from core.event_system import (
 from voice.pipeline import VoicePipeline, PipelineConfig, create_pipeline
 from agent.intent_router import get_intent_router
 from agent.action_resolver import get_action_resolver
-from agent.jarvis_context import get_context_engine
+from agent.pipe_context import get_context_engine
 from agent.executor import AgentExecutor
 
 
@@ -30,7 +30,7 @@ class VoiceUIConfig:
 
 class VoiceUIBridge:
     """
-    Bridges VoicePipeline with JARVIS UI and execution system.
+    Bridges VoicePipeline with P.I.P.E UI and execution system.
     
     Handles:
     - Voice pipeline lifecycle (start/stop)
@@ -198,7 +198,7 @@ class VoiceUIBridge:
         """Handle TTS playback started."""
         self.ui.set_state("SPEAKING")
         text_preview = event.payload.get("text", "")[:50]
-        self.ui.write_log(f"JARVIS: {text_preview}...")
+        self.ui.write_log(f"P.I.P.E: {text_preview}...")
     
     def _on_audio_playback_ended(self, event: Event) -> None:
         """Handle TTS playback ended."""

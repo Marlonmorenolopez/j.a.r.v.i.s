@@ -1,4 +1,4 @@
-"""Action Resolver — Converts intents to concrete executable actions for JARVIS.
+"""Action Resolver — Converts intents to concrete executable actions for P.I.P.E.
 
 This module sits between Intent Router and Capability/Tool execution.
 It resolves an abstract intent into a specific tool call with parameters.
@@ -275,7 +275,7 @@ class ActionResolver:
 
     def _map_entity_to_param(self, entity_name: str, tool_name: str) -> Optional[str]:
         """Map entity name to tool parameter name."""
-        # Common mappings for JARVIS tools
+        # Common mappings for P.I.P.E tools
         mappings = {
             "app_name": "app",
             "app": "app",
@@ -377,11 +377,11 @@ def get_action_resolver() -> ActionResolver:
 
 
 # ============================================================================
-# BUILT-IN PARAMETER SPECIFICATIONS FOR JARVIS CAPABILITIES
+# BUILT-IN PARAMETER SPECIFICATIONS FOR P.I.P.E CAPABILITIES
 # ============================================================================
 
 def initialize_action_resolver() -> None:
-    """Initialize resolver with built-in parameter specifications for JARVIS."""
+    """Initialize resolver with built-in parameter specifications for P.I.P.E."""
     resolver = get_action_resolver()
     resolver.clear()
 

@@ -1,4 +1,4 @@
-"""Central configuration loader for JARVIS.
+"""Central configuration loader for P.I.P.E.
 Loads .env file using python-dotenv and provides access to environment variables.
 """
 

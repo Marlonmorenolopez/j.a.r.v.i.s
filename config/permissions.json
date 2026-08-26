@@ -2,12 +2,12 @@
   "grants": {
     "send_message": {
       "capability_id": "send_message",
-      "granted_at": 1787628285.8100543,
+      "granted_at": 1787712416.8593068,
       "scope": "permanent",
       "expires_at": null,
       "conditions": {},
       "source": "user"
     }
   },
-  "saved_at": 1787628285.8100684
+  "saved_at": 1787712416.8593457
 }

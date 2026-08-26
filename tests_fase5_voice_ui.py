@@ -15,7 +15,7 @@ from core.event_system import (
 )
 from agent.intent_router import get_intent_router
 from agent.action_resolver import get_action_resolver
-from agent.jarvis_context import get_context_engine
+from agent.pipe_context import get_context_engine
 from agent.action_dispatcher import dispatch_tool
 
 

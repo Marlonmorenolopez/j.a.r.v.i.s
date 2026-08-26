@@ -237,7 +237,7 @@ def extract_memory(user_text: str, jarvis_text: str, api_key: str = "") -> dict:
             f"                  favorite_game, favorite_sport, favorite_book, favorite_artist,\n"
             f"                  favorite_country, hobbies, interests, dislikes, etc.\n"
             f"  projects      → projects being built, ongoing work, goals, ideas in progress\n"
-            f"                  (e.g. mark_xxv: 'Building a JARVIS-like AI assistant')\n"
+            f"                  (e.g. pipe_v1: 'Building a P.I.P.E-like AI assistant')\n"
             f"  relationships → people mentioned: friends, family, partner, colleagues\n"
             f"                  (e.g. best_friend_ali: 'Best friend, met in university')\n"
             f"  wishes        → future plans, things to buy, travel plans, dreams\n"
@@ -250,7 +250,7 @@ def extract_memory(user_text: str, jarvis_text: str, api_key: str = "") -> dict:
             f"Format:\n"
             f'{{"identity":{{"name":{{"value":"Ali"}}}},\n'
             f' "preferences":{{"favorite_color":{{"value":"blue"}}}},\n'
-            f' "projects":{{"mark_xxv":{{"value":"JARVIS-like AI assistant"}}}},\n'
+            f' "projects":{{"pipe_v1":{{"value":"P.I.P.E-like AI assistant"}}}},\n'
             f' "relationships":{{"friend_yusuf":{{"value":"close friend"}}}},\n'
             f' "wishes":{{"buy_guitar":{{"value":"wants an acoustic guitar"}}}},\n'
             f' "notes":{{"works_at_night":{{"value":"usually active late at night"}}}}}}\n\n'

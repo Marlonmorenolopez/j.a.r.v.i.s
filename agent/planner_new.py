@@ -1,4 +1,4 @@
-"""Planner — Task planning module for JARVIS (FASE 2C).
+"""Planner — Task planning module for P.I.P.E (FASE 2C).
 
 This module creates execution plans for complex goals using the Agent Path.
 It integrates with:
@@ -37,7 +37,7 @@ from agent.action_resolver import (
     get_action_resolver,
     ResolutionError,
 )
-from agent.jarvis_context import (
+from agent.pipe_context import (
     ContextEngine,
     get_context_engine,
 )
@@ -120,7 +120,7 @@ class PlannerContext:
 # ============================================================================
 
 class Planner:
-    """Task planner for JARVIS Agent Path.
+    """Task planner for P.I.P.E Agent Path.
 
     Creates structured plans from user goals by:
     1. Analyzing the goal with Intent Router
@@ -278,7 +278,7 @@ class Planner:
 
         caps_text = "\n".join(cap_descriptions)
 
-        return f"""You are the Planner for JARVIS, a universal desktop agent.
+        return f"""You are the Planner for P.I.P.E, a universal desktop agent.
 Your job: break any user goal into a sequence of steps using ONLY the capabilities listed below.
 
 ABSOLUTE RULES:

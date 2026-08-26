@@ -4,8 +4,28 @@ import concurrent.futures
 import platform
 import shutil
 import subprocess
+import locale
 from pathlib import Path
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+
+# Force subprocess to use the correct encoding for Windows Spanish locale
+_orig_run = subprocess.run
+def _patched_run(*args, **kwargs):
+    if "encoding" not in kwargs:
+        kwargs["encoding"] = locale.getpreferredencoding(False)
+    if "errors" not in kwargs:
+        kwargs["errors"] = "replace"
+    return _orig_run(*args, **kwargs)
+subprocess.run = _patched_run
+
+_orig_popen = subprocess.Popen
+def _patched_popen(*args, **kwargs):
+    if "encoding" not in kwargs:
+        kwargs["encoding"] = locale.getpreferredencoding(False)
+    if "errors" not in kwargs:
+        kwargs["errors"] = "replace"
+    return _orig_popen(*args, **kwargs)
+subprocess.Popen = _patched_popen
 
 
 def _get_default_browser_id() -> str:
@@ -16,7 +36,7 @@ def _get_default_browser_id() -> str:
             import winreg
             key = winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
+                r"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice"
             )
             prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
             winreg.CloseKey(key)
@@ -27,14 +47,14 @@ def _get_default_browser_id() -> str:
                 ["defaults", "read",
                  "com.apple.LaunchServices/com.apple.launchservices.secure",
                  "LSHandlers"],
-                capture_output=True, text=True, timeout=5
+                capture_output=True, text=True, timeout=5, encoding="utf-8", errors="replace"
             )
             return result.stdout.lower()
 
         elif system == "Linux":
             result = subprocess.run(
                 ["xdg-settings", "get", "default-web-browser"],
-                capture_output=True, text=True, timeout=5
+                capture_output=True, text=True, timeout=5, encoding="utf-8", errors="replace"
             )
             return result.stdout.lower()
 

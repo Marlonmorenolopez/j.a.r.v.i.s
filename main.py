@@ -7,6 +7,25 @@ import traceback
 from pathlib import Path
 
 # ============================================================================
+# CRITICAL: Patch subprocess BEFORE any other imports that might use it
+# This fixes UnicodeDecodeError on Windows with Spanish locale (cp1252)
+# BUT we must be careful not to break asyncio's internal use of Popen
+# ============================================================================
+import subprocess
+import locale
+
+# Only patch subprocess.run (which is commonly called with text=True)
+# Patching Popen breaks asyncio on Windows
+_orig_run = subprocess.run
+def _patched_run(*args, **kwargs):
+    if "encoding" not in kwargs and kwargs.get("text", False):
+        kwargs["encoding"] = locale.getpreferredencoding(False)
+    if "errors" not in kwargs and kwargs.get("text", False):
+        kwargs["errors"] = "replace"
+    return _orig_run(*args, **kwargs)
+subprocess.run = _patched_run
+
+# ============================================================================
 # UNICODE OUTPUT FIX — Windows console (cp1252) no puede codificar emojis.
 # Reconfiguramos stdout/stderr a UTF-8 en cualquiera de estas situaciones:
 #   1. El stream no tiene codificación explícita asignada
@@ -55,7 +74,7 @@ _configure_unicode_output()
 import sounddevice as sd
 from google import genai
 from google.genai import types
-from ui import JarvisUI
+from ui import PipeUIWrapper as PipeUI
 from memory.memory_manager import (
     load_memory, update_memory, format_memory_for_prompt,
     should_extract_memory, extract_memory
@@ -107,7 +126,7 @@ def _load_system_prompt() -> str:
         return PROMPT_PATH.read_text(encoding="utf-8")
     except Exception:
         return (
-            "You are JARVIS, Tony Stark's AI assistant. "
+            "You are P.I.P.E, a Personal Intelligent Processing Entity. "
             "Be concise, direct, and always use the provided tools to complete tasks. "
             "Never simulate or guess results — always call the appropriate tool."
         )
@@ -137,9 +156,9 @@ def _update_memory_async(user_text: str, jarvis_text: str) -> None:
             print(f"[Memory] ⚠️ {e}")
 
 
-class JarvisLive:
+class PipeLive:
 
-    def __init__(self, ui: JarvisUI):
+    def __init__(self, ui: PipeUI):
         self.ui             = ui
         self.session        = None
         self.audio_in_queue = None
@@ -195,7 +214,7 @@ class JarvisLive:
         try:
             self.out_queue.put_nowait(message)
         except asyncio.QueueFull:
-            print("[JARVIS] ⚠️ Audio queue full; dropping one input block.")
+            print("[P.I.P.E] ⚠️ Audio queue full; dropping one input block.")
 
     def _on_text_command(self, text: str):
         if not self._loop or not self.session:
@@ -283,7 +302,7 @@ class JarvisLive:
         args = dict(fc.args or {})
         tool_started = time.perf_counter()
 
-        print(f"[JARVIS] 🔧 {name}  {args}")
+        print(f"[P.I.P.E] 🔧 {name}  {args}")
         self.ui.set_state("THINKING")
         if name == "save_memory":
             category = args.get("category", "notes")
@@ -389,9 +408,9 @@ class JarvisLive:
                 r = await loop.run_in_executor(None, lambda: flight_finder(parameters=args, player=self.ui))
                 result = r or "Done."
 
-            elif name == "shutdown_jarvis":
+            elif name == "shutdown_pipe":
                 self.ui.write_log("SYS: Shutdown requested.")
-                self.speak("Goodbye, sir.")
+                self.speak("Goodbye.")
 
                 def _shutdown():
                     import time, sys, os
@@ -410,7 +429,7 @@ class JarvisLive:
         if not self.ui.muted:
             self.ui.set_state("LISTENING")
 
-        print(f"[JARVIS] 📤 {name} → {str(result)[:80]}")
+        print(f"[P.I.P.E] 📤 {name} → {str(result)[:80]}")
 
         if self._voice_metrics:
             self._voice_metrics["tool_seconds"] += time.perf_counter() - tool_started
@@ -429,7 +448,7 @@ class JarvisLive:
                 await self.session.send_realtime_input(media=msg)
 
     async def _listen_audio(self):
-        print("[JARVIS] 🎤 Mic started")
+        print("[P.I.P.E] 🎤 Mic started")
         loop = asyncio.get_event_loop()
 
         def callback(indata, frames, time_info, status):
@@ -472,15 +491,15 @@ class JarvisLive:
                 blocksize=CHUNK_SIZE,
                 callback=callback,
             ):
-                print("[JARVIS] 🎤 Mic stream open")
+                print("[P.I.P.E] 🎤 Mic stream open")
                 while True:
                     await asyncio.sleep(0.1)
         except Exception as e:
-            print(f"[JARVIS] ❌ Mic: {e}")
+            print(f"[P.I.P.E] ❌ Mic: {e}")
             raise
 
     async def _receive_audio(self):
-        print("[JARVIS] 👂 Recv started")
+        print("[P.I.P.E] 👂 Recv started")
         out_buf, in_buf = [], []
 
         try:
@@ -520,7 +539,7 @@ class JarvisLive:
 
                             full_out = " ".join(out_buf).strip()
                             if full_out:
-                                self.ui.write_log(f"Jarvis: {full_out}")
+                                self.ui.write_log(f"Pipe: {full_out}")
                             out_buf = []
 
                             if full_in and len(full_in) > 5:
@@ -536,7 +555,7 @@ class JarvisLive:
                     if response.tool_call:
                         fn_responses = []
                         for fc in response.tool_call.function_calls:
-                            print(f"[JARVIS] 📞 {fc.name}")
+                            print(f"[P.I.P.E] 📞 {fc.name}")
                             fr = await self._execute_tool(fc)
                             fn_responses.append(fr)
                         await self.session.send_tool_response(
@@ -544,12 +563,12 @@ class JarvisLive:
                         )
 
         except Exception as e:
-            print(f"[JARVIS] ❌ Recv: {e}")
+            print(f"[P.I.P.E] ❌ Recv: {e}")
             traceback.print_exc()
             raise
 
     async def _play_audio(self):
-        print("[JARVIS] 🔊 Play started")
+        print("[P.I.P.E] 🔊 Play started")
         loop = asyncio.get_event_loop()
 
         stream = sd.RawOutputStream(
@@ -569,7 +588,7 @@ class JarvisLive:
                     self.set_speaking(False)
                    
         except Exception as e:
-            print(f"[JARVIS] ❌ Play: {e}")
+            print(f"[P.I.P.E] ❌ Play: {e}")
             raise
         finally:
             self.set_speaking(False)
@@ -584,7 +603,7 @@ class JarvisLive:
 
         while True:
             try:
-                print("[JARVIS] 🔌 Connecting...")
+                print("[P.I.P.E] 🔌 Connecting...")
                 self.ui.set_state("THINKING")
                 config = self._build_config()
 
@@ -597,9 +616,9 @@ class JarvisLive:
                     self.audio_in_queue = asyncio.Queue()
                     self.out_queue      = asyncio.Queue(maxsize=10)
 
-                    print("[JARVIS] ✅ Connected.")
+                    print("[P.I.P.E] ✅ Connected.")
                     self.ui.set_state("LISTENING")
-                    self.ui.write_log("SYS: JARVIS online.")
+                    self.ui.write_log("SYS: P.I.P.E online.")
 
                     tg.create_task(self._send_realtime())
                     tg.create_task(self._listen_audio())
@@ -607,22 +626,22 @@ class JarvisLive:
                     tg.create_task(self._play_audio())
                    
             except Exception as e:
-                print(f"[JARVIS] ⚠️ {e}")
+                print(f"[P.I.P.E] ⚠️ {e}")
                 traceback.print_exc()
 
             self.set_speaking(False)
             self.ui.set_state("THINKING")
-            print("[JARVIS] 🔄 Reconnecting in 3s...")
+            print("[P.I.P.E] 🔄 Reconnecting in 3s...")
             await asyncio.sleep(3)
 
 def main():
-    ui = JarvisUI("face.png")
+    ui = PipeUI("face.png")
 
     def runner():
         ui.wait_for_api_key()
-        jarvis = JarvisLive(ui)
+        pipe = PipeLive(ui)
         try:
-            asyncio.run(jarvis.run())
+            asyncio.run(pipe.run())
         except KeyboardInterrupt:
             print("\n🔴 Shutting down...")
 

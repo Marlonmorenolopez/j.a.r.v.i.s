@@ -231,7 +231,7 @@ class OpenRouterClient:
         self,
         prompt: str,
         system: str = (
-            "You are a component of MARK XXV, an AI assistant inspired by JARVIS. "
+            "You are a component of P.I.P.E, a Personal Intelligent Processing Entity. "
             "Be concise, helpful, and precise."
         ),
         model: Optional[str] = None,

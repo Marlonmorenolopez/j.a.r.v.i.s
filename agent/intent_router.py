@@ -1,4 +1,4 @@
-"""Intent Router — Maps user input to structured intents for JARVIS.
+"""Intent Router — Maps user input to structured intents for P.I.P.E.
 
 This module provides deterministic intent classification for the Fast Path.
 For the Agent Path, it provides structured intent output for the Planner.
@@ -188,7 +188,16 @@ class IntentRouter:
 
     def _resolve_capability(self, intent_name: str) -> Optional[str]:
         """Map intent name to capability ID via CapabilityRegistry."""
-        return self._capability_registry._intent_to_capability.get(intent_name.lower())
+        # Direct mapping
+        cap_id = self._capability_registry._intent_to_capability.get(intent_name.lower())
+        if cap_id:
+            return cap_id
+        
+        # Special case: SYSTEM_SHUTDOWN maps to system_control capability
+        if intent_name.upper() == "SYSTEM_SHUTDOWN":
+            return "system_control"
+        
+        return None
 
     def classify(self, text: str, *, autonomy_level: int = 3) -> Intent:
         """Classify user input into an Intent.
@@ -304,7 +313,7 @@ def get_intent_router() -> IntentRouter:
 
 
 # ============================================================================
-# BUILT-IN ENTITY EXTRACTORS (adapted for JARVIS Spanish-first)
+# BUILT-IN ENTITY EXTRACTORS (adapted for P.I.P.E Spanish-first)
 # ============================================================================
 
 def extract_app_name(text: str) -> Optional[Dict[str, str]]:
@@ -498,11 +507,11 @@ def extract_computer_action(text: str) -> Optional[Dict[str, str]]:
 
 
 # ============================================================================
-# INITIALIZATION - Register built-in patterns for JARVIS's 24 capabilities
+# INITIALIZATION - Register built-in patterns for P.I.P.E's 24 capabilities
 # ============================================================================
 
 def initialize_intent_router() -> None:
-    """Initialize router with built-in intent patterns for JARVIS capabilities."""
+    """Initialize router with built-in intent patterns for P.I.P.E capabilities."""
     router = get_intent_router()
 
     # Clear any existing (for re-initialization)
@@ -922,7 +931,7 @@ def initialize_intent_router() -> None:
     router.register_simple(
         intent_name="SYSTEM_SHUTDOWN",
         regex_patterns=[
-            r'\b(?:apaga|apagar|shutdown|apaga\s+jarvis|cierra\s+jarvis|exit|salir)\b',
+            r'\b(?:apaga|apagar|shutdown|apaga\s+pipe|cierra\s+pipe|exit|salir)\b',
         ],
         intent_type=IntentType.SYSTEM_CONTROL,
         path=RoutingPath.CLARIFY,

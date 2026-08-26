@@ -1,4 +1,4 @@
-"""Permission Manager — Manages user permissions and consent for JARVIS.
+"""Permission Manager — Manages user permissions and consent for P.I.P.E.
 
 This module handles:
 - Permission requests for capabilities requiring confirmation
@@ -70,7 +70,7 @@ class PermissionGrant:
 
 
 class PermissionManager:
-    """Manages permissions and consent for JARVIS capabilities.
+    """Manages permissions and consent for P.I.P.E capabilities.
 
     Integrates with CapabilityRegistry for risk-based gating.
     Provides both synchronous (blocking) and async (callback) APIs.

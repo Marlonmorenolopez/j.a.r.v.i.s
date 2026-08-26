@@ -8,7 +8,7 @@ from enum import Enum
 # ============================================================
 # Capability Registry — fase 2B B1
 # ============================================================
-# Responsable: cargar y consultar capabilities del JARVIS Core.
+# Responsable: cargar y consultar capabilities del P.I.P.E Core.
 # NO reemplaza al Tool Registry (core/tool_registry.py) — ese
 # es para Gemini Live function_calling. Este es para el Core:
 # routing, permissions, verification, planning.
@@ -54,7 +54,7 @@ class CapabilityStatus(Enum):
 
 @dataclass
 class Capability:
-    """Representa una capability del sistema JARVIS."""
+    """Representa una capability del sistema P.I.P.E."""
     id: str
     name_es: str
     domain: str

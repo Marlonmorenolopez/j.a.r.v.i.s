@@ -1,4 +1,4 @@
-"""Event System — Publish/subscribe event bus for JARVIS.
+"""Event System — Publish/subscribe event bus for P.I.P.E.
 
 This module provides:
 - Typed event classes for core system events
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class EventType(Enum):
-    """Core event types for JARVIS system."""
+    """Core event types for P.I.P.E system."""
     # Capability lifecycle
     CAPABILITY_REGISTERED = "capability_registered"
     CAPABILITY_UNREGISTERED = "capability_unregistered"
